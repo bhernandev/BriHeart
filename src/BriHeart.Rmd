@@ -14,7 +14,8 @@ heart_data <- original_heart_data %>%
   mutate_at(1:3, funs(as_datetime(., tz = "America/New_York"))) %>%
   mutate(start_time = strftime(start_date, format="%H:%M:%S"),
          end_time = strftime(end_date, format="%H:%M:%S"),
-         entry_date = date(end_date))
+         entry_date = date(end_date),
+         half_hour = ((2 * hour(end_date)) + (1 * (minute(end_date) > 29))))
 
 
 sleep_data <- original_sleep_data %>% 
@@ -165,12 +166,6 @@ binded_dates <- top_five_supposed %>%
 supposed_dates <- as.Date(c("2018-08-02", "2018-07-26", "2018-08-30", "2018-08-24", "2018-07-25"))
 actual_dates <- top_five_actual$actual_date
 
-heart_data %>% 
-  filter(entry_date %in% c(days_to_compare[3,1], days_to_compare[1,2]), asleep == FALSE) %>%
-  mutate(entry_date_char = as.character(entry_date), entry_date_char = recode(entry_date_char, "2018-08-30" = "actual", "2018-08-02" = "supposed")) %>%
-  ggplot() +
-  geom_density(aes(x = heart_rate, fill = entry_date_char), alpha = 0.5)
-
 for (i in 1:5){
   plot_data <- heart_data %>% 
     filter(entry_date %in% c(supposed_dates[i], actual_dates[i]), asleep == FALSE) %>%
@@ -182,4 +177,23 @@ for (i in 1:5){
 
 ```
 
-```{r }
+```{r deeper_top_five}
+
+#look at what time the super huge spike in heart rate was
+
+```
+
+```{r heart_distribution_half_hourly}
+
+heart_data %>%
+  group_by(half_hour) %>%
+  summarize(avg_hr = median(heart_rate), twenty_fifth = quantile(heart_rate, .25), seventy_fifth = quantile(heart_rate, .75)) %>%
+  ggplot() +
+  geom_line(aes(x = half_hour, y = avg_hr), size = 1) +
+  geom_ribbon(aes(x = half_hour, ymin = twenty_fifth, ymax = seventy_fifth), alpha = 0.5)
+
+```
+
+```{r sleep_on_HR_spikes}
+
+```
