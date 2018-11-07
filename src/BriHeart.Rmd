@@ -112,28 +112,51 @@ daily_sleep_data %>%
 
 ```
 
-```{r combined_initial_exploration}
+```{r heart_sleep_exploration}
 
 sleep_vs_hr <- heart_data %>% 
   filter(asleep == FALSE) %>%
   inner_join(daily_sleep_data) %>%
   filter(as.numeric(hms(end_time)) > as.numeric(hms(latest_wakeup))) %>%
   group_by(entry_date) %>%
-  summarize(avg_heart_rate = mean(heart_rate)) %>% 
+  summarize(avg_heart_rate = mean(heart_rate),
+            stdev_heart_rate = sd(heart_rate)) %>% 
   inner_join(daily_sleep_data) %>%
   ungroup() %>%
   mutate(hours_of_sleep = seconds_of_sleep/3600)
   
 sleep_vs_hr %>%
   ggplot() +
-  geom_point(aes(x = seconds_of_sleep, y = avg_heart_rate)) +
-  geom_smooth(aes(x = seconds_of_sleep, y = avg_heart_rate), color = "red", method = lm, se = FALSE)
+  geom_point(aes(x = hours_of_sleep, y = avg_heart_rate)) +
+  geom_smooth(aes(x = hours_of_sleep, y = avg_heart_rate), color = "red", method = lm, se = FALSE)
 
-cor(sleep_vs_hr$seconds_of_sleep, sleep_vs_hr$avg_heart_rate)
+#Sleep on Avg Heart Rate
+
+cor(sleep_vs_hr$hours_of_sleep, sleep_vs_hr$avg_heart_rate)
 
 sleep_vs_hr %>%
   lm(formula = avg_heart_rate ~ hours_of_sleep) %>%
   summary()
+
+sleep_vs_hr %>%
+  ggplot() +
+  geom_point(aes(x = hours_of_sleep, y = avg_heart_rate)) +
+  geom_ribbon(aes(x = hours_of_sleep,
+                  ymin = avg_heart_rate - stdev_heart_rate,
+                  ymax = avg_heart_rate + stdev_heart_rate),
+              alpha = 0.5)
+
+#Sleep on susceptibility to HR spikes
+
+cor(sleep_vs_hr$hours_of_sleep, sleep_vs_hr$stdev_heart_rate)
+
+sleep_vs_hr %>%
+  lm(formula = stdev_heart_rate ~ hours_of_sleep) %>%
+  summary()
+
+sleep_vs_hr %>%
+  ggplot() +
+  geom_point(aes(x = hours_of_sleep, y = stdev_heart_rate, alpha = stdev_heart_rate))
 
 ```
 
@@ -170,6 +193,7 @@ for (i in 1:5){
   plot_data <- heart_data %>% 
     filter(entry_date %in% c(supposed_dates[i], actual_dates[i]), asleep == FALSE) %>%
     mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
+  
   print(ggplot(plot_data) 
         + geom_density(aes(x = heart_rate, fill = source), alpha = 0.5)
         + ggtitle(i))
@@ -181,6 +205,16 @@ for (i in 1:5){
 
 #look at what time the super huge spike in heart rate was
 
+for (i in 1:5){
+  plot_data <- heart_data %>% 
+    filter(entry_date %in% c(supposed_dates[i], actual_dates[i])) %>%
+    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
+  
+  print(ggplot(plot_data)
+        + geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate))
+        + ggtitle(i))
+}
+
 ```
 
 ```{r heart_distribution_half_hourly}
@@ -191,9 +225,5 @@ heart_data %>%
   ggplot() +
   geom_line(aes(x = half_hour, y = avg_hr), size = 1) +
   geom_ribbon(aes(x = half_hour, ymin = twenty_fifth, ymax = seventy_fifth), alpha = 0.5)
-
-```
-
-```{r sleep_on_HR_spikes}
 
 ```
