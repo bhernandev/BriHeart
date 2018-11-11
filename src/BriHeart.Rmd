@@ -101,6 +101,15 @@ day_comparison_data %>%
   ggplot() +
   geom_point(aes(x = time, y = heart_rate, color = flag))
 
+# avg_HR over time
+
+heart_data %>%
+  filter(asleep == FALSE) %>%
+  group_by(entry_date) %>%
+  summarize(avg = mean(heart_rate)) %>%
+  ggplot() +
+  geom_point(aes(x = entry_date, y = avg))
+
 ```
 
 ```{r initial_sleep_exploration}
@@ -146,7 +155,7 @@ sleep_vs_hr %>%
                   ymax = avg_heart_rate + stdev_heart_rate),
               alpha = 0.5)
 
-#Sleep on susceptibility to HR spikes
+# sleep on susceptibility to HR spikes
 
 cor(sleep_vs_hr$hours_of_sleep, sleep_vs_hr$stdev_heart_rate)
 
@@ -205,13 +214,25 @@ for (i in 1:5){
 
 #look at what time the super huge spike in heart rate was
 
+# all HR points across the day
+for (i in 1:5){
+  plot_data <- heart_data %>% 
+    filter(entry_date %in% actual_dates[i]) %>%
+    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
+  
+  print(ggplot(plot_data)
+        + geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep))
+        + ggtitle(i))
+}
+
+# fitting smoothing line to heart data
 for (i in 1:5){
   plot_data <- heart_data %>% 
     filter(entry_date %in% c(supposed_dates[i], actual_dates[i])) %>%
     mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
   
   print(ggplot(plot_data)
-        + geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate))
+        + geom_smooth(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate))
         + ggtitle(i))
 }
 
