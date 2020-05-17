@@ -33,45 +33,9 @@ sleep_data <- original_sleep_data %>%
          day_of_week = wday(entry_date, label = TRUE),
          weekend = day_of_week == "Sat" | day_of_week == "Sun")
 
-heart_data$asleep <- lubridate::`%within%`(heart_data$start_date, as.list(sleep_data$interval))
-
-daily_sleep_data <- sleep_data %>%
-  mutate(entry_date = date(end_date)) %>% 
-  group_by(entry_date) %>%
-  summarize(latest_wakeup = max(end_time), seconds_of_sleep = sum(seconds_length)) %>%
-  ungroup() %>%
-  mutate(day_of_week = wday(entry_date, label = TRUE), weekend = day_of_week == "Sat" | day_of_week == "Sun")
-
-sleep_and_hr <- heart_data %>% 
-  filter(asleep == FALSE) %>%
-  inner_join(daily_sleep_data) %>%
-  filter(as.numeric(hms(end_time)) > as.numeric(hms(latest_wakeup))) %>%
-  group_by(entry_date) %>%
-  summarize(avg_heart_rate = mean(heart_rate),
-            stdev_heart_rate = sd(heart_rate)) %>% 
-  inner_join(daily_sleep_data) %>%
-  ungroup() %>%
-  mutate(hours_of_sleep = seconds_of_sleep/3600)
-
-# top five supposed
-top_five_supposed <- heart_data %>%
-  filter(asleep == FALSE) %>%
-  mutate(supposed_date = date(end_date)) %>%
-  filter(supposed_date %in% as.Date(c("2018-08-02", "2018-07-26", "2018-08-30", "2018-08-24", "2018-07-25"))) %>%
-  group_by(supposed_date) %>%
-  summarize(highest_rate_supposed = max(heart_rate))
-
-# top five actual
-top_five_actual <- heart_data %>% 
-  filter(asleep == FALSE) %>%
-  mutate(actual_date = date(end_date)) %>%
-  group_by(actual_date) %>%
-  summarize(highest_rate_actual = max(heart_rate)) %>%
-  arrange(desc(highest_rate_actual)) %>%
-  head(5)
-
-supposed_dates <- as.Date(c("2018-08-02", "2018-07-26", "2018-08-30", "2018-08-24", "2018-07-25"))
-actual_dates <- top_five_actual$actual_date
+heart_data$asleep_flag <- lubridate::`%within%`(heart_data$start_date, as.list(sleep_data$interval))
+heart_data <- heart_data %>%
+  mutate(asleep = ifelse(asleep_flag, "Asleep", "Awake"))
 
 #####
 #
@@ -79,18 +43,9 @@ actual_dates <- top_five_actual$actual_date
 #
 #####
 
-#All Heart Rates Over Time
-HR_over_time <- heart_data %>%
-  ggplot() +
-  ggtitle("All Heart Rates") +
-  geom_point(aes(x = end_date, y = heart_rate)) +
-  xlab("Time") +
-  ylab("HR (bpm)")
-
-
 #Average Heart Rates Over Time
 avg_HR_over_time <- heart_data %>%
-  filter(asleep == FALSE) %>%
+  filter(asleep_flag == FALSE) %>%
   group_by(entry_date) %>%
   summarize(avg = mean(heart_rate)) %>%
   ggplot() +
@@ -98,74 +53,64 @@ avg_HR_over_time <- heart_data %>%
   geom_point(aes(x = entry_date, y = avg)) +
   geom_smooth(aes(x = entry_date, y = avg), color = "red", method = lm, se = FALSE) +
   xlab("Date") +
-  ylab("AVG HR (bpm)")
+  ylab("Average Heart Rate (bpm)") +
+  theme(legend.title = element_blank(),
+        plot.background = element_rect(fill = '#F4F4F4'), 
+        panel.background = element_rect(fill = '#F4F4F4'),
+        legend.key = element_rect(fill = "#F4F4F4"),
+        legend.background = element_rect(fill = "#F7F7F7", color="#E6E6E6"),
+        panel.grid.major = element_line(color="#E6E6E6"), 
+        panel.grid.minor = element_line(color="#E6E6E6"))
 
-#Amount of sleep every day
-daily_sleep <- daily_sleep_data %>%
-  filter(!weekend) %>%
-  ggplot() + 
-  ggtitle("Daily Hours of Sleep, Jul-Oct 2018") +
-  geom_point(aes(x = entry_date, y = seconds_of_sleep/3600)) +
-  geom_smooth(aes(x = entry_date, y = seconds_of_sleep/3600), color = "red", method = lm, se = FALSE) +
-  xlab("Date") +
-  ylab("Hours of Sleep")
+#Dates of interest for the investigation
+interesting_dates <- as.Date(c("2018-07-26", "2018-08-02", "2018-08-04", "2018-08-30"))
 
-#Amount of Sleep Over Heart Rate
-sleep_on_HR <- sleep_and_hr %>%
-  ggplot() +
-  ggtitle("Sleep vs Average Heart Rate") +
-  geom_point(aes(x = hours_of_sleep, y = avg_heart_rate)) +
-  geom_smooth(aes(x = hours_of_sleep, y = avg_heart_rate), color = "red", method = lm, se = FALSE) +
-  xlab("Hours of Sleep") +
-  ylab("AVG HR (bpm)")
+#Vector to hold the scatter plots
+interesting_date_scatter_plots <- list()
 
-#Top Five Moments
+for (i in 1:4){
+  scatter_plot_data <- heart_data %>% 
+    filter(entry_date %in% interesting_dates[i])
 
-#Vector to hold top five moment plots
-top_five_plots <- list()
+  interesting_date_scatter_plots[[i]] <- ggplot(scatter_plot_data) + 
+          geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep)) +
+          scale_color_manual(values = c("Awake" = "#FAAA6D", "Asleep" = "#105388")) +
+          ggtitle(sprintf("Heart Rate Points from %s", interesting_dates[i])) +
+          scale_x_continuous(limits = c(0, 24), breaks=seq(0, 24, 8)) +
+          ylim(40, 200) +
+          xlab("Hour of Day") +
+          ylab("Heart Rate (bpm)") + 
+          theme(legend.title = element_blank(),
+                plot.background = element_rect(fill = '#F4F4F4'), 
+                panel.background = element_rect(fill = '#F4F4F4'),
+                legend.key = element_rect(fill = "#F4F4F4"),
+                legend.background = element_rect(fill = "#F7F7F7", color="#E6E6E6"),
+                panel.grid.major = element_line(color="#E6E6E6"), 
+                panel.grid.minor = element_line(color="#E6E6E6"))
+}
 
-for (i in 1:5) local({
-  plot_data <- heart_data %>% 
-    filter(entry_date %in% actual_dates[i])
-  
-  top_five_plots[[i]] <<- ggplot(plot_data) +
-    ggtitle(sprintf("Top HR Date #%i",i)) +
-    geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep)) +
-    xlab("Hour") +
-    ylab("HR (bpm)") +
-    guides(fill=guide_legend(title="Asleep"))
-})
+#Vector to hold the density plots
+interesting_date_density_plots <- list()
 
-#Top Five Moments vs Supposed Top Five
+for (i in 1:4){
+  density_plot_data <- heart_data %>% 
+    filter(entry_date %in% c(interesting_dates[i]), asleep_flag == FALSE)
 
-#Vector to hold top five comparison plots
-top_five_comparison_plots <- list()
-
-for (i in 1:5) local({
-  plot_data <- heart_data %>% 
-    filter(entry_date %in% c(supposed_dates[i], actual_dates[i]), asleep == FALSE) %>%
-    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "Hypothesized", "Actual"))
-  
-  top_five_comparison_plots[[i]] <<- ggplot(plot_data) +
-    ggtitle(sprintf("Top HR Date #%i : Actual vs Hypothesis", i)) + 
-    geom_density(aes(x = heart_rate, fill = source), alpha = 0.5) + 
+  interesting_date_density_plots[[i]] <- ggplot(density_plot_data) +
+    ggtitle(sprintf("Heart Rate Density Plot from %s", interesting_dates[i])) + 
+    geom_density(aes(x = heart_rate), alpha = 0.40, color='red', fill="red") + 
     xlim(40, 200) +
-    xlab("HR (bpm)") +
+    ylim(0, 0.03) +
+    xlab("Heart Rate (bpm)") +
     ylab("Density") + 
-    theme(legend.title = element_blank())
-})
-
-#Distribution of Heart Rate Broken Down Half-Hourly
-half_hourly_HR_distributions <- heart_data %>%
-  filter(!weekend) %>%
-  group_by(half_hour) %>%
-  summarize(avg_hr = median(heart_rate), twenty_fifth = quantile(heart_rate, .25), seventy_fifth = quantile(heart_rate, .75)) %>%
-  ggplot() +
-  ggtitle("Expected HR by Hour") +
-  geom_line(aes(x = half_hour/2, y = avg_hr), size = 0.5) +
-  geom_ribbon(aes(x = half_hour/2, ymin = twenty_fifth, ymax = seventy_fifth), alpha = 0.5) +
-  xlab("Hour") + 
-  ylab("AVG HR (bpm)")
+    theme(legend.title = element_blank(),
+          plot.background = element_rect(fill = '#F4F4F4'), 
+          panel.background = element_rect(fill = '#F4F4F4'),
+          legend.key = element_rect(fill = "#F4F4F4"),
+          legend.background = element_rect(fill = "#F7F7F7", color="#E6E6E6"),
+          panel.grid.major = element_line(color="#E6E6E6"), 
+          panel.grid.minor = element_line(color="#E6E6E6"))
+}
 
 #####
 #
@@ -173,17 +118,9 @@ half_hourly_HR_distributions <- heart_data %>%
 #
 #####
 
-ggsave(HR_over_time, file = "../figures/HR_over_time.png", height = 4, width = 8)
-
 ggsave(avg_HR_over_time, file = "../figures/avg_HR_over_time.png", height = 4, width = 8)
 
-ggsave(daily_sleep, file = "../figures/daily_sleep.png", height = 4, width = 4)
-
-ggsave(sleep_on_HR, file = "../figures/sleep_on_HR.png", height = 4, width = 4)
-
-for(i in 1:5){
-  ggsave(top_five_plots[[i]], file = paste("../figures/top_five_", i, ".png", sep = ""), height = 4, width = 4)
-  ggsave(top_five_comparison_plots[[i]], file = paste("../figures/top_five_comparison_", i, ".png", sep = ""), height = 4, width = 4)
+for(i in 1:4){
+  ggsave(interesting_date_scatter_plots[[i]], file = paste("../figures/interesting_date_scatter_plot_", i, ".png", sep = ""), height = 4, width = 4)
+  ggsave(interesting_date_density_plots[[i]], file = paste("../figures/interesting_date_density_plot_", i, ".png", sep = ""), height = 4, width = 4)
 }
-
-ggsave(half_hourly_HR_distributions, file = "../figures/half_hourly_HR_distributions.png", height = 4, width = 4)

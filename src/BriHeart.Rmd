@@ -30,11 +30,11 @@ sleep_data <- original_sleep_data %>%
 
 ```
 
-Its kind of funny that there are times where the Motiv Ring thought that I was sleeping but not actually *in bed*
-
 ```{r data_cleaning, warning=FALSE}
 
-heart_data$asleep <- lubridate::`%within%`(heart_data$start_date, as.list(sleep_data$interval))
+heart_data$asleep_flag <- lubridate::`%within%`(heart_data$start_date, as.list(sleep_data$interval))
+heart_data <- heart_data %>%
+  mutate(asleep = ifelse(asleep_flag, "Asleep", "Awake"))
 
 #Creating the latest time that I woke up each day
 daily_sleep_data <- sleep_data %>%
@@ -44,169 +44,12 @@ daily_sleep_data <- sleep_data %>%
 
 ```
 
-```{r initial_heart_exploration}
-
-filtered_data <- heart_data %>% 
-  filter(month(end_date) == 7, day(end_date) > 27)
-
-filtered_data %>%
-  ggplot() +
-  geom_line(aes(x = end_date, y = heart_rate))
-
-filtered_data %>%
-  ggplot() +
-  geom_point(aes(x = end_date, y = heart_rate, color = asleep))
-
-filtered_data %>%
-  summarize(std = sd(heart_rate), avg = mean(heart_rate))
-
-filtered_data %>%
-  group_by(heart_rate) %>%
-  summarize(count = n()) %>%
-  arrange(desc(count))
-
-# presentation_day
-
-presentation_day <- heart_data %>%
-  filter(date(end_date) == "2018-08-02")
-
-presentation_day %>%
-  ggplot() +
-  geom_point(aes(x = end_date, y = heart_rate)) + 
-  geom_line(aes(x = end_date, y  = heart_rate))
-
-# first_day
-
-first_day <- heart_data %>%
-  filter(date(end_date) == "2018-07-26")
-
-first_day %>%
-  ggplot() +
-  geom_point(aes(x = end_date, y = heart_rate)) + 
-  geom_line(aes(x = end_date, y  = heart_rate))
-
-# day_comparison
-
-first_day_comp <- first_day %>%
-  mutate(flag = "first", time = strftime(end_date, format="%H:%M:%S")) %>% 
-  select(time, heart_rate, flag)
-
-presentation_day_comp <- presentation_day %>%
-  mutate(flag = "presentation", time = strftime(end_date, format="%H:%M:%S")) %>% 
-  select(time, heart_rate, flag)
-
-day_comparison_data <- rbind(first_day_comp, presentation_day_comp)
-
-day_comparison_data %>%
-  ggplot() +
-  geom_point(aes(x = time, y = heart_rate, color = flag))
-
-# avg_HR over time
-
-heart_data %>%
-  filter(asleep == FALSE) %>%
-  group_by(entry_date) %>%
-  summarize(avg = mean(heart_rate)) %>%
-  ggplot() +
-  geom_point(aes(x = entry_date, y = avg))
-
-```
-
-```{r initial_sleep_exploration}
-
-daily_sleep_data %>%
-  ggplot() +
-  geom_point(aes(x = entry_date, y = as.numeric(hms(latest_wakeup)), size = seconds_of_sleep/10000))
-
-
-```
-
-```{r heart_sleep_exploration}
-
-sleep_vs_hr <- heart_data %>% 
-  filter(asleep == FALSE) %>%
-  inner_join(daily_sleep_data) %>%
-  filter(as.numeric(hms(end_time)) > as.numeric(hms(latest_wakeup))) %>%
-  group_by(entry_date) %>%
-  summarize(avg_heart_rate = mean(heart_rate),
-            stdev_heart_rate = sd(heart_rate)) %>% 
-  inner_join(daily_sleep_data) %>%
-  ungroup() %>%
-  mutate(hours_of_sleep = seconds_of_sleep/3600)
-  
-sleep_vs_hr %>%
-  ggplot() +
-  geom_point(aes(x = hours_of_sleep, y = avg_heart_rate)) +
-  geom_smooth(aes(x = hours_of_sleep, y = avg_heart_rate), color = "red", method = lm, se = FALSE)
-
-#Sleep on Avg Heart Rate
-
-cor(sleep_vs_hr$hours_of_sleep, sleep_vs_hr$avg_heart_rate)
-
-sleep_vs_hr %>%
-  lm(formula = avg_heart_rate ~ hours_of_sleep) %>%
-  summary()
-
-sleep_vs_hr %>%
-  ggplot() +
-  geom_point(aes(x = hours_of_sleep, y = avg_heart_rate)) +
-  geom_ribbon(aes(x = hours_of_sleep,
-                  ymin = avg_heart_rate - stdev_heart_rate,
-                  ymax = avg_heart_rate + stdev_heart_rate),
-              alpha = 0.5)
-
-# sleep on susceptibility to HR spikes
-
-cor(sleep_vs_hr$hours_of_sleep, sleep_vs_hr$stdev_heart_rate)
-
-sleep_vs_hr %>%
-  lm(formula = stdev_heart_rate ~ hours_of_sleep) %>%
-  summary()
-
-sleep_vs_hr %>%
-  ggplot() +
-  geom_point(aes(x = hours_of_sleep, y = stdev_heart_rate, alpha = stdev_heart_rate))
-
-```
-
-```{r top_five}
-
-# top five supposed
-top_five_supposed <- heart_data %>%
-  filter(asleep == FALSE) %>%
-  mutate(supposed_date = date(end_date)) %>%
-  filter(supposed_date %in% as.Date(c("2018-08-02", "2018-07-26", "2018-08-30", "2018-08-24", "2018-07-25"))) %>%
-  group_by(supposed_date) %>%
-  summarize(highest_rate_supposed = max(heart_rate))
-
-# top five actual
-top_five_actual <- heart_data %>% 
-  filter(asleep == FALSE) %>%
-  mutate(actual_date = date(end_date)) %>%
-  group_by(actual_date) %>%
-  summarize(highest_rate_actual = max(heart_rate)) %>%
-  arrange(desc(highest_rate_actual)) %>%
-  head(5)
-
-# comparing the supposed with actual top five
-binded_dates <- top_five_supposed %>%
-  cbind(top_five_actual) %>%
-  select(supposed_date, actual_date) %>%
-  mutate(index = 1:n())
+```{r interesting_dates}
 
 # creating matching vectors
-supposed_dates <- as.Date(c("2018-08-02", "2018-07-26", "2018-08-30", "2018-08-24", "2018-07-25"))
-actual_dates <- top_five_actual$actual_date
+interesting_dates <- as.Date(c("2018-07-26", "2018-08-02", "2018-08-04", "2018-08-30"))
 
-for (i in 1:5){
-  plot_data <- heart_data %>% 
-    filter(entry_date %in% c(supposed_dates[i], actual_dates[i]), asleep == FALSE) %>%
-    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
-  
-  print(ggplot(plot_data) 
-        + geom_density(aes(x = heart_rate, fill = source), alpha = 0.5)
-        + ggtitle(i))
-}
+interesting_date_plots <- list()
 
 ```
 
@@ -215,36 +58,49 @@ for (i in 1:5){
 #look at what time the super huge spike in heart rate was
 
 # all HR points across the day
-for (i in 1:5){
+for (i in 1:4) {
   plot_data <- heart_data %>% 
-    filter(entry_date %in% actual_dates[i]) %>%
-    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
-  
-  print(ggplot(plot_data)
-        + geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep))
-        + ggtitle(i))
-}
+    filter(entry_date %in% interesting_dates[i])
 
-# fitting smoothing line to heart data
-for (i in 1:5){
-  plot_data <- heart_data %>% 
-    filter(entry_date %in% c(supposed_dates[i], actual_dates[i])) %>%
-    mutate(entry_date_char = as.character(entry_date), source = ifelse(entry_date == supposed_dates[i], "supposed", "actual"))
-  
-  print(ggplot(plot_data)
-        + geom_smooth(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate))
-        + ggtitle(i))
+  print(ggplot(plot_data) + 
+          ggtitle(sprintf("Heart Rate Points from %s", interesting_dates[i])) +
+          geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep)) +
+          scale_color_manual(values = c("Awake" = "#FAAA6D", "Asleep" = "#105388")) +
+          scale_x_continuous(limits = c(0, 24), breaks=seq(0, 24, 8)) +
+          ylim(40, 200) +
+          xlab("Hour of Day") +
+          ylab("Heart Rate (bpm)") + 
+          theme(legend.title = element_blank(),
+                plot.background = element_rect(fill = '#F4F4F4'), 
+                panel.background = element_rect(fill = '#F4F4F4'),
+                legend.key = element_rect(fill = "#F4F4F4"),
+                legend.background = element_rect(fill = "#F7F7F7", color="#E6E6E6"),
+                panel.grid.major = element_line(color="#E6E6E6"), 
+                panel.grid.minor = element_line(color="#E6E6E6")))
 }
 
 ```
 
 ```{r heart_distribution_half_hourly}
 
-heart_data %>%
-  group_by(half_hour) %>%
-  summarize(avg_hr = median(heart_rate), twenty_fifth = quantile(heart_rate, .25), seventy_fifth = quantile(heart_rate, .75)) %>%
-  ggplot() +
-  geom_line(aes(x = half_hour, y = avg_hr), size = 1) +
-  geom_ribbon(aes(x = half_hour, ymin = twenty_fifth, ymax = seventy_fifth), alpha = 0.5)
+for (i in 1:4) {
+  density_plot_data <- heart_data %>% 
+    filter(entry_date %in% c(interesting_dates[i]), asleep_flag == FALSE)
+
+  print(ggplot(density_plot_data) +
+    ggtitle(sprintf("Heart Rate Density Plot from %s", interesting_dates[i])) + 
+    geom_density(aes(x = heart_rate), alpha = 0.40, color='red', fill="red") + 
+    xlim(40, 200) +
+    ylim(0, 0.03) +
+    xlab("Heart Rate (bpm)") +
+    ylab("Density") + 
+    theme(legend.title = element_blank(),
+          plot.background = element_rect(fill = '#F4F4F4'), 
+          panel.background = element_rect(fill = '#F4F4F4'),
+          legend.key = element_rect(fill = "#F4F4F4"),
+          legend.background = element_rect(fill = "#F7F7F7", color="#E6E6E6"),
+          panel.grid.major = element_line(color="#E6E6E6"), 
+          panel.grid.minor = element_line(color="#E6E6E6")))
+}
 
 ```
