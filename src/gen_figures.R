@@ -75,7 +75,7 @@ for (i in 1:4){
   interesting_date_scatter_plots[[i]] <- ggplot(scatter_plot_data) + 
           geom_point(aes(x = as.numeric(hms(end_time))/3600, y = heart_rate, color = asleep)) +
           scale_color_manual(values = c("Awake" = "#FAAA6D", "Asleep" = "#105388")) +
-          ggtitle(sprintf("Heart Rate Points from %s", interesting_dates[i])) +
+          ggtitle(sprintf("Heart Rate Scatterplot from %s", interesting_dates[i])) +
           scale_x_continuous(limits = c(0, 24), breaks=seq(0, 24, 8)) +
           ylim(40, 200) +
           xlab("Hour of Day") +
@@ -98,7 +98,9 @@ for (i in 1:4){
 
   interesting_date_density_plots[[i]] <- ggplot(density_plot_data) +
     ggtitle(sprintf("Heart Rate Density Plot from %s", interesting_dates[i])) + 
-    geom_density(aes(x = heart_rate), alpha = 0.40, color='red', fill="red") + 
+    geom_density(aes(x = heart_rate), alpha = 0.40, color="red", fill="red") + 
+    geom_vline(aes(xintercept=median(heart_rate)), color="red", linetype="dashed") +
+    annotate("text", x=median(density_plot_data$heart_rate) + 12, y=0.0015, label="Median", family="Arial", size=3, angle=21) +
     xlim(40, 200) +
     ylim(0, 0.03) +
     xlab("Heart Rate (bpm)") +

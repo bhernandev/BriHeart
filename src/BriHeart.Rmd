@@ -89,7 +89,9 @@ for (i in 1:4) {
 
   print(ggplot(density_plot_data) +
     ggtitle(sprintf("Heart Rate Density Plot from %s", interesting_dates[i])) + 
-    geom_density(aes(x = heart_rate), alpha = 0.40, color='red', fill="red") + 
+    geom_density(aes(x = heart_rate), alpha = 0.40, color="red", fill="red") + 
+    geom_vline(aes(xintercept=median(heart_rate)), color="red", linetype="dashed") +
+    annotate("text", x=median(density_plot_data$heart_rate) + 7.7, y=0.0017, label="Median", family="Arial", size=4, angle=21) +
     xlim(40, 200) +
     ylim(0, 0.03) +
     xlab("Heart Rate (bpm)") +
